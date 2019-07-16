@@ -1,3 +1,7 @@
+mod tsp;
+
+use crate::tsp::cities;
+use crate::tsp::total_distance;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -13,6 +17,9 @@ struct Opt {
 }
 
 fn main() {
-    let args = Opt::from_args();
-    println!("{:#?}", args);
+    let cities = cities(3, 100.);
+    println!("{:#?}", total_distance(&cities, &[0, 1, 2].to_vec()));
+    println!("{:#?}", total_distance(&cities, &[1, 2, 0].to_vec()));
+    // let args = Opt::from_args();
+    // println!("{:#?}", args);
 }
