@@ -1,7 +1,8 @@
 mod tsp;
+mod genetic;
 
 use crate::tsp::cities;
-use crate::tsp::total_distance;
+use crate::genetic::solve;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -17,9 +18,8 @@ struct Opt {
 }
 
 fn main() {
-    let cities = cities(3, 100.);
-    println!("{:#?}", total_distance(&cities, &[0, 1, 2].to_vec()));
-    println!("{:#?}", total_distance(&cities, &[1, 2, 0].to_vec()));
+    let cities = cities(5, 100.);
+    solve(&cities);
     // let args = Opt::from_args();
     // println!("{:#?}", args);
 }
