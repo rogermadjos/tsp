@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Roger Madjos <roger.madjos@gmail.com>"]
 edition = "2018"
 
+[dev-dependencies]
+speculate = "0.1"
+
 [dependencies]
 structopt = "0.2.18"
 rand = "0.7"
