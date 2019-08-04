@@ -8,7 +8,6 @@ use crate::tsp::City;
 use crate::tsp::total_distance;
 use rand::{thread_rng, Rng};
 use rand::rngs::ThreadRng;
-use rand::seq::SliceRandom;
 use std::cmp::Ordering;
 
 #[derive(Clone)]
@@ -28,16 +27,16 @@ impl Individual {
   fn random(cities: &Vec<City>, rng: &mut ThreadRng) -> Individual {
     let mut chromosome: Vec<usize> = Vec::new();
     for i in 0..cities.len() {
-      chromosome.push(rng.gen::<usize>() % (cities.len() - i));
+      chromosome.push(rng.gen_range(0, cities.len() - i));
     }
 
     Individual::new(&chromosome, cities)
   }
 
-  fn crossover(&self, other: &Self, cities: &Vec<City>, rng: &mut ThreadRng) -> (Individual, Individual) {
+  fn crossover(&self, other: &Self, cities: &Vec<City>, mutation: f64, rng: &mut ThreadRng) -> (Individual, Individual) {
     let len = self.chromosome.len();
 
-    let points = (rng.gen::<usize>() % len, rng.gen::<usize>() % len);
+    let points = (rng.gen_range(0, len), rng.gen_range(0, len));
 
     let pns = if points.0 <= points.1 {
       points.1 - points.0
@@ -50,19 +49,22 @@ impl Individual {
     if pns > 0 {
       for i in 0..pns {
         let j = (points.0 + i) % len;
-        offsprings.0[j] = other.chromosome[j];
-        offsprings.1[j] = self.chromosome[j];
+
+        if rng.gen_range(0., 1.) < mutation {
+          offsprings.0[j] = rng.gen_range(0, cities.len() - j);
+        } else {
+          offsprings.0[j] = other.chromosome[j];
+        }
+
+        if rng.gen_range(0., 1.) < mutation {
+          offsprings.1[j] = rng.gen_range(0, cities.len() - j);
+        } else {
+          offsprings.1[j] = self.chromosome[j];
+        }
       }
     }
 
     (Individual::new(&offsprings.0, cities), Individual::new(&offsprings.1, cities))
-  }
-
-  fn mutate(&mut self, rng: &mut ThreadRng) {
-    let len = self.chromosome.len();
-    let pos = rng.gen::<usize>() % len;
-
-    self.chromosome[pos] = rng.gen::<usize>() % (len - pos);
   }
 }
 
@@ -85,41 +87,6 @@ impl PartialEq for Individual {
 }
 
 impl Eq for Individual {}
-
-fn random_individual(cities: &Vec<City>, rng: &mut ThreadRng) -> Individual {
-  let mut perm: Vec<usize> = (0..cities.len()).collect();
-  perm.shuffle(rng);
-
-  let fitness = 1. / total_distance(cities, &perm);
-
-  Individual {
-    chromosome: invert(&perm),
-    fitness,
-  }
-}
-
-fn crossover(parents: (&Vec<usize>, &Vec<usize>), points: (usize, usize)) -> (Vec<usize>, Vec<usize>) {
-  let len = parents.0.len();
-
-  let pns = if points.0 <= points.1 {
-    points.1 - points.0
-  } else {
-    parents.0.len() - points.0 + points.1
-  };
-
-  let mut offsprings = (parents.0.clone(), parents.1.clone());
-
-  if pns > 0 {
-    for i in 0..pns {
-      let j = (points.0 + i) % len;
-      offsprings.0[j] = parents.1[j];
-      offsprings.1[j] = parents.0[j];
-    }
-  }
-
-
-  offsprings
-}
 
 fn invert(perm: &Vec<usize>) -> Vec<usize> {
   let mut inverse: Vec<usize> = vec![];
@@ -164,27 +131,42 @@ fn revert(inv: &Vec<usize>) -> Vec<usize> {
 pub struct GAOptions {
   pub pool_size: usize,
   pub elitism: f64,
-  pub mutation_rate: f64,
+  pub mutation: f64,
+  pub generations: usize,
 }
 
 pub fn solve(cities: &Vec<City>, options: GAOptions) -> Vec<usize> {
   let mut rng = thread_rng();
   let mut population = Vec::new();
+  let elites_count = ((options.pool_size as f64) * options.elitism) as usize;
+
   for _ in 0..options.pool_size {
     population.push(Individual::random(cities, &mut rng));
   }
 
-  population.sort();
+  for _ in 0..options.generations {
+    // Selection
+    population.sort();
+    let best = &population[0];
+    println!("{}", best.fitness);
+    population.truncate(elites_count);
 
-  let elites_count = ((options.pool_size as f64) * options.elitism) as usize;
-  let mut population: Vec<Individual> = population.iter().cloned().take(elites_count).collect();
-  for _ in 0..(options.pool_size - elites_count) {
+    // Crossover and Mutation
+    while population.len() < options.pool_size {
+      let parent_1_pos = rng.gen_range(0, elites_count);
+      let mut parent_2_pos = rng.gen_range(0, elites_count);
+      while parent_2_pos == parent_1_pos {
+        parent_2_pos = rng.gen_range(0, elites_count);
+      }
 
+      let parent_1 = &population[parent_1_pos];
+      let parent_2 = &population[parent_2_pos];
+
+      let offsprings = parent_1.crossover(parent_2, cities, options.mutation, &mut rng);
+      population.push(offsprings.0);
+      population.push(offsprings.1);
+    }
   }
-
-  // let survivors: Vec<Individual> = population.iter().cloned().take(survivors_size).collect();
-  // let parents: Vec<&Individual> = survivors.choose_multiple(&mut rng, 2).collect();
-  // let mark: usize = rng.gen::<usize>() % cities.len();
 
   vec![]
 }
@@ -200,8 +182,9 @@ mod tests {
       it "should run without errors" {
         solve(&cities(10, 100.), GAOptions {
           elitism: 0.15,
-          mutation_rate: 0.007,
-          pool_size: 100
+          mutation: 0.005,
+          pool_size: 100,
+          generations: 100,
         });
       }
     }
@@ -228,34 +211,6 @@ mod tests {
       it "should generate correct output" {
         for (input, output) in EXAMPLES.iter() {
           assert_eq!(&revert(&input.to_vec()), output);
-        }
-      }
-    }
-
-    describe "crossover" {
-      const PARENTS: ([usize; 7], [usize; 7]) = ([4, 1, 1, 1, 2, 0, 0], [3, 1, 2, 1, 0, 1, 0]);
-
-      describe "given point 1 is greater than point 2" {
-        const POINTS: (usize, usize) = (1,4);
-        #[ignore]
-        it "should generate correct output" {
-          assert_eq!(crossover((&PARENTS.0.to_vec(), &PARENTS.1.to_vec()), POINTS), ([4, 1, 2, 1, 2, 0, 0].to_vec(), [3, 1, 1, 1, 0, 1, 0].to_vec()));
-        }
-      }
-
-      describe "given point 2 is greater than point 1" {
-        const POINTS: (usize, usize) = (5, 2);
-        #[ignore]
-        it "should generate correct output" {
-          assert_eq!(crossover((&PARENTS.0.to_vec(), &PARENTS.1.to_vec()), POINTS), ([3, 1, 1, 1, 2, 1, 0].to_vec(), [4, 1, 2, 1, 0, 0, 0].to_vec()));
-        }
-      }
-
-      describe "given point 1 is equal to point 2" {
-        const POINTS: (usize, usize) = (4, 4);
-        #[ignore]
-        it "should generate offsprings equal to the parents" {
-          assert_eq!(crossover((&PARENTS.0.to_vec(), &PARENTS.1.to_vec()), POINTS), ([4, 1, 1, 1, 2, 0, 0].to_vec(), [3, 1, 2, 1, 0, 1, 0].to_vec()));
         }
       }
     }

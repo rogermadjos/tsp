@@ -19,11 +19,12 @@ struct Opt {
 }
 
 fn main() {
-    let cities = cities(10, 100.);
+    let cities = cities(100, 100.);
     solve(&cities, GAOptions {
         elitism: 0.15,
-        mutation_rate: 0.007,
-        pool_size: 100
+        mutation: 0.005,
+        pool_size: 100,
+        generations: 1000,
     });
     // let args = Opt::from_args();
     // println!("{:#?}", args);
