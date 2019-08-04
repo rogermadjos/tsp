@@ -1,8 +1,9 @@
 mod tsp;
-mod genetic;
+mod ga;
 
 use crate::tsp::cities;
-use crate::genetic::solve;
+use crate::ga::solve;
+use crate::ga::GAOptions;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -18,8 +19,12 @@ struct Opt {
 }
 
 fn main() {
-    let cities = cities(5, 100.);
-    solve(&cities);
+    let cities = cities(10, 100.);
+    solve(&cities, GAOptions {
+        elitism: 0.15,
+        mutation_rate: 0.007,
+        pool_size: 100
+    });
     // let args = Opt::from_args();
     // println!("{:#?}", args);
 }
